@@ -207,7 +207,7 @@ class State():
     dt = 0.05
 
     v_own = 800 # ft/sec
-    v_int = 800
+    v_int = 500
 
     time_elapse_mats = init_time_elapse_mats(dt)
 
@@ -623,11 +623,9 @@ def make_random_input(seed, num_inputs=100):
 
     radius = 10000 + np.random.random() * 51000 # [10000, 61000]
     angle = np.random.random() * 2 * np.pi
-
-    # intruder initial state is random
-    int_heading = angle + np.pi + np.random.random() * np.pi - np.pi / 2
     int_x = radius * np.cos(angle)
     int_y = radius * np.sin(angle)
+    int_heading = np.random.random() * 2 * np.pi
     
     init_vec[3] = int_x
     init_vec[4] = int_y
@@ -648,6 +646,7 @@ def main():
     interesting_state = None
 
     num_sims = 10000
+    
     start = time.perf_counter()
 
     for seed in range(num_sims):
