@@ -18,3 +18,4 @@ TOOD list:
 * add replay capability and save mp4 from command line
 * add command-line usage to the readme
 * find head-on example with same velocity and mirroring commands for paper
+* add different "desired" ownship commands, rather than straight
