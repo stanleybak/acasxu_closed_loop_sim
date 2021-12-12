@@ -32,7 +32,7 @@ def sim_single(seed):
 
     if command == 0:
         # run the simulation
-        s = State(init_vec, save_states=True)
+        s = State(init_vec, save_states=False)
         s.simulate(cmd_list)
 
         # reject simulations where the minimum distance was near the start
