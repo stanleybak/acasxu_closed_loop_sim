@@ -18,3 +18,6 @@ TOOD list:
 * add replay capability and save mp4 from command line
 * add command-line usage to the readme
 * find head-on example with same velocity and mirroring commands for paper
+* add different "desired" ownship commands, rather than straight
+* add intruder (and maybe ownship) commands to be anything between -3 and 3 degrees per second, rather than just in `[-3, -1.5, 0, 1.5, 3.0]`
+* add input quantization version (see https://arxiv.org/abs/2108.07961 for example values)
