@@ -8,6 +8,7 @@ This version uses multiprocessing pool for more simulations
 
 import time
 import multiprocessing
+import argparse
 
 import numpy as np
 
@@ -23,10 +24,13 @@ def sim_single(seed):
     elif seed % 100 == 0:
         print(".", end='', flush=True)
 
-    init_vec, cmd_list = make_random_input(seed)
+    init_vec, cmd_list, init_velo = make_random_input(seed)
+
+    v_own = init_velo[0]
+    v_int = init_velo[1]
 
     # reject start states where initial command is not clear-of-conflict
-    state5 = state7_to_state5(init_vec, State.v_own, State.v_int)
+    state5 = state7_to_state5(init_vec, v_own, v_int)
     res = run_network(State.nets[0], state5)
     command = np.argmin(res)
 
@@ -44,6 +48,12 @@ def sim_single(seed):
 def main():
     'main entry point'
 
+    'parse arguments'
+    parser = argparse.ArgumentParser(description='Run ACASXU Dublins model simulator.')
+    parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
+    args = parser.parse_args()
+
+    save_mp4 = args.save_mp4
     interesting_seed = -1
 
     num_sims = 10000
@@ -62,10 +72,10 @@ def main():
     print(f"\nplotting most interesting state with seed {interesting_seed} and min_dist {d}ft")
 
     # optional: do plot
-    init_vec, cmd_list = make_random_input(interesting_seed)
-    s = State(init_vec, save_states=True)
+    init_vec, cmd_list, init_velo = make_random_input(interesting_seed)
+    s = State(init_vec, init_velo[0], init_velo[1], save_states=True)
     s.simulate(cmd_list)
-    plot(s, save_mp4=False)
+    plot(s, save_mp4)
 
 if __name__ == "__main__":
     main()

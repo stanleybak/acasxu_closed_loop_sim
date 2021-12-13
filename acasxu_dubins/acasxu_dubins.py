@@ -7,6 +7,7 @@ Used for falsification, where the opponent is allowed to maneuver over time
 from functools import lru_cache
 import time
 import math
+import argparse
 
 import numpy as np
 from scipy import ndimage
@@ -67,13 +68,13 @@ def load_networks():
 def get_time_elapse_mat(command1, dt, command2=0):
     '''get the matrix exponential for the given command
 
-    state: x, y, vx, vy, x2, y2, vx2, vy2 
+    state: x, y, vx, vy, x2, y2, vx2, vy2
     '''
 
     y_list = [0.0, 1.5, -1.5, 3.0, -3.0]
     y1 = y_list[command1]
     y2 = y_list[command2]
-    
+
     dtheta1 = (y1 / 180 * np.pi)
     dtheta2 = (y2 / 180 * np.pi)
 
@@ -106,7 +107,7 @@ def run_network(network_tuple, x, stdout=False):
     in_array = np.array(x, dtype=np.float32)
     in_array.shape = (1, 1, 1, 5)
     outputs = session.run(None, {'input': in_array})
-        
+
     return outputs[0][0]
 
 @njit(cache=True)
@@ -162,7 +163,7 @@ def state7_to_state8(state7, v_own, v_int):
 @lru_cache(maxsize=None)
 def get_airplane_img():
     """load airplane image form file"""
-    
+
     img = plt.imread('airplane.png')
 
     return img
@@ -174,7 +175,7 @@ def init_time_elapse_mats(dt):
 
     for cmd in range(5):
         rv.append([])
-        
+
         for int_cmd in range(5):
             mat = get_time_elapse_mat(cmd, dt, int_cmd)
             rv[-1].append(mat)
@@ -206,17 +207,22 @@ class State():
     nn_update_rate = 2.0
     dt = 0.05
 
-    v_own = 800 # ft/sec
-    v_int = 500
+    'Valid range" [100, 1145]'
+    #v_own = 800 # ft/sec
+
+    'Valid range: [60,1145]'
+    #v_int = 500
 
     time_elapse_mats = init_time_elapse_mats(dt)
 
-    def __init__(self, init_vec, save_states=False):
+    def __init__(self, init_vec, v_own=800, v_int=500, save_states=False):
         assert len(init_vec) == 7, "init vec should have length 7"
-        
+
         self.vec = np.array(init_vec, dtype=float) # current state
         self.next_nn_update = 0
         self.command = 0 # initial command
+        self.v_own = v_own
+        self.v_int = v_int
 
         # these are set when simulation() if save_states=True
         self.save_states = save_states
@@ -245,7 +251,7 @@ class State():
         self.artists_dict['circle0'].set_visible(False) # circle always False
         self.artists_dict['lc0'].set_visible(True)
         self.artists_dict['plane0'].set_visible(vis)
-        
+
     def update_artists(self, axes):
         '''update artists in self.artists_dict to be consistant with self.vec, returns a list of artists'''
 
@@ -367,7 +373,7 @@ class State():
 
         posa_list = [(v[0], v[1], v[2]) for v in self.vec_list]
         posb_list = [(v[3], v[4], v[5]) for v in self.vec_list]
-        
+
         pos_lists = [posa_list, posb_list]
 
         if show_intruder:
@@ -375,7 +381,7 @@ class State():
 
         for i, pos_list in enumerate(pos_lists):
             x, y, theta = pos_list[0]
-            
+
             l = axes.plot(*zip(*pos_list), f'c-', lw=0, zorder=1)[0]
             l.set_visible(False)
             self.artists_dict[f'line{i}'] = l
@@ -435,7 +441,7 @@ class State():
 
         time_elapse_mat = State.time_elapse_mats[self.command][intruder_cmd] #get_time_elapse_mat(self.command, State.dt, intruder_cmd)
 
-        self.vec = step_state(self.vec, State.v_own, State.v_int, time_elapse_mat, State.dt)
+        self.vec = step_state(self.vec, self.v_own, self.v_int, time_elapse_mat, State.dt)
 
     def simulate(self, cmd_list):
         '''simulate system
@@ -473,9 +479,9 @@ class State():
                 break
 
             prev_dist_sq = cur_dist_sq
-            
+
         self.min_dist = math.sqrt(prev_dist_sq)
-        
+
         if self.save_states:
             self.vec_list = rv
 
@@ -487,7 +493,7 @@ class State():
     def update_command(self):
         'update command based on current state'''
 
-        rho, theta, psi, v_own, v_int = state7_to_state5(self.vec, State.v_own, State.v_int)
+        rho, theta, psi, v_own, v_int = state7_to_state5(self.vec, self.v_own, self.v_int)
 
         # 0: rho, distance
         # 1: theta, angle to intruder relative to ownship heading
@@ -520,11 +526,11 @@ class State():
             # repeat last command if no more commands
             self.u_list_index = min(self.u_list_index, len(self.u_list) - 1)
 
-def plot(s, save_mp4=False):
+def plot(s, save_mp4):
     """plot a specific simulation"""
-    
+
     init_plot()
-    
+
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
     axes.axis('equal')
 
@@ -544,7 +550,7 @@ def plot(s, save_mp4=False):
 
     axes.legend(custom_lines, ['Strong Left', 'Weak Left', 'Clear of Conflict', 'Weak Right', 'Strong Right'], \
                 fontsize=14, loc='lower left')
-    
+
     s.make_artists(axes, show_intruder=True)
     states = [s]
 
@@ -626,7 +632,7 @@ def make_random_input(seed, num_inputs=100):
     int_x = radius * np.cos(angle)
     int_y = radius * np.sin(angle)
     int_heading = np.random.random() * 2 * np.pi
-    
+
     init_vec[3] = int_x
     init_vec[4] = int_y
     init_vec[5] = int_heading
@@ -637,16 +643,27 @@ def make_random_input(seed, num_inputs=100):
     for _ in range(num_inputs):
         cmd_list.append(np.random.randint(5))
 
-    return init_vec, cmd_list
+    # generate random valid velocities
+    init_velo = [np.random.randint(100, 1146),
+                 np.random.randint(60, 1146)]
+
+    return init_vec, cmd_list, init_velo
 
 def main():
     'main entry point'
+
+    'parse arguments'
+    parser = argparse.ArgumentParser(description='Run ACASXU Dublins model simulator.')
+    parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
+    args = parser.parse_args()
+
+    save_mp4 = args.save_mp4
 
     interesting_seed = -1
     interesting_state = None
 
     num_sims = 10000
-    
+
     start = time.perf_counter()
 
     for seed in range(num_sims):
@@ -654,11 +671,14 @@ def main():
             print(f"{(seed//1000) % 10}", end='', flush=True)
         elif seed % 100 == 0:
             print(".", end='', flush=True)
-            
-        init_vec, cmd_list = make_random_input(seed)
+
+        init_vec, cmd_list, init_velo = make_random_input(seed)
+
+        v_own = init_velo[0]
+        v_int = init_velo[1]
 
         # reject start states where initial command is not clear-of-conflict
-        state5 = state7_to_state5(init_vec, State.v_own, State.v_int)
+        state5 = state7_to_state5(init_vec, v_own, v_int)
         res = run_network(State.nets[0], state5)
         command = np.argmin(res)
 
@@ -666,14 +686,14 @@ def main():
             continue
 
         # run the simulation
-        s = State(init_vec, save_states=True)
+        s = State(init_vec, v_own, v_int, save_states=True)
         s.simulate(cmd_list)
 
         # reject simulations where the minimum distance was near the start
         if s.vec[-1] < 3.0:
             continue
 
-        # save most interesting state based on some criterea
+        # save most interesting state based on some criteria
         if interesting_state is None or s.min_dist < interesting_state.min_dist:
             interesting_seed = seed
             interesting_state = s
@@ -687,10 +707,10 @@ def main():
 
     # optional: do plot
     assert interesting_state is not None
-    init_vec, cmd_list = make_random_input(interesting_seed)
-    s = State(init_vec, save_states=True)
+    init_vec, cmd_list, init_velo = make_random_input(interesting_seed)
+    s = State(init_vec, init_velo[0], init_velo[1], save_states=True)
     s.simulate(cmd_list)
-    plot(s, save_mp4=False)
+    plot(s, save_mp4)
 
 if __name__ == "__main__":
     main()
