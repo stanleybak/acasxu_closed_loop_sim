@@ -686,7 +686,11 @@ def main():
             continue
 
         # run the simulation
+<<<<<<< HEAD
         s = State(init_vec, v_own, v_int, save_states=True)
+=======
+        s = State(init_vec, save_states=False)
+>>>>>>> bfd3804a7b658d8d29230664301ac3fee19f77fe
         s.simulate(cmd_list)
 
         # reject simulations where the minimum distance was near the start
