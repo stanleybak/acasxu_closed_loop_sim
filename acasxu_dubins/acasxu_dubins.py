@@ -458,7 +458,7 @@ class State():
         assert isinstance(cmd_list, list)
         tmax = len(cmd_list) * State.nn_update_rate
 
-        t = 0
+        t = 0.0
 
         if self.save_states:
             rv = [self.vec.copy()]
@@ -620,7 +620,7 @@ def plot(s, save_mp4):
     else:
         plt.show()
 
-def make_random_input(seed, num_inputs=100):
+def make_random_input(seed, intruder_can_turn=True, num_inputs=100):
     """make a random input for the system"""
 
     np.random.seed(seed) # deterministic random numbers
@@ -640,14 +640,19 @@ def make_random_input(seed, num_inputs=100):
     init_vec[5] = int_heading
 
     # intruder commands for every control period (0 to 4)
-    cmd_list = []
+    if intruder_can_turn:
+        cmd_list = []
 
-    for _ in range(num_inputs):
-        cmd_list.append(np.random.randint(5))
+        for _ in range(num_inputs):
+            cmd_list.append(np.random.randint(5))
+    else:
+        cmd_list = [0] * num_inputs
 
     # generate random valid velocities
-    init_velo = [np.random.randint(100, 1146),
-                 np.random.randint(60, 1146)]
+    #init_velo = [np.random.randint(100, 1146),
+    #             np.random.randint(60, 1146)]
+    init_velo = [np.random.randint(100, 1200),
+                 np.random.randint(0, 1200)]
 
     return init_vec, cmd_list, init_velo
 
@@ -659,12 +664,15 @@ def main():
     parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
     args = parser.parse_args()
 
+    intruder_can_turn = False
+
     save_mp4 = args.save_mp4
 
     interesting_seed = -1
     interesting_state = None
 
-    num_sims = 10000
+    num_sims = 1000
+    # with 1000 sims, seed 104 has min_dist 5478.2ft
 
     start = time.perf_counter()
 
@@ -674,21 +682,25 @@ def main():
         elif seed % 100 == 0:
             print(".", end='', flush=True)
 
-        init_vec, cmd_list, init_velo = make_random_input(seed)
+        init_vec, cmd_list, init_velo = make_random_input(seed, intruder_can_turn=intruder_can_turn)
 
         v_own = init_velo[0]
         v_int = init_velo[1]
 
         # reject start states where initial command is not clear-of-conflict
         state5 = state7_to_state5(init_vec, v_own, v_int)
-        res = run_network(State.nets[0], state5)
-        command = np.argmin(res)
+
+        if state5[0] > 60760:
+            command = 0 # rho exceeds network limit
+        else:
+            res = run_network(State.nets[0], state5)
+            command = np.argmin(res)
 
         if command != 0:
             continue
 
         # run the simulation
-        s = State(init_vec, v_own, v_int, save_states=True)
+        s = State(init_vec, v_own, v_int, save_states=False)
         s.simulate(cmd_list)
 
         # reject simulations where the minimum distance was near the start
@@ -709,9 +721,11 @@ def main():
 
     # optional: do plot
     assert interesting_state is not None
-    init_vec, cmd_list, init_velo = make_random_input(interesting_seed)
+    init_vec, cmd_list, init_velo = make_random_input(interesting_seed, intruder_can_turn=intruder_can_turn)
     s = State(init_vec, init_velo[0], init_velo[1], save_states=True)
     s.simulate(cmd_list)
+    assert abs(s.min_dist - interesting_state.min_dist) < 1e-6, f"got min dist: {s.min_dist}"
+        
     plot(s, save_mp4)
 
 if __name__ == "__main__":
