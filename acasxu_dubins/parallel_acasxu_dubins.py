@@ -72,6 +72,8 @@ def main():
     num_rejected = 0
     start = time.perf_counter()
 
+    print(f"Running {num_sims} parallel simulations in batches of {batch_size}...")
+
     with multiprocessing.Pool() as pool:
         while remaining_sims > 0:
             cur_batch = min(batch_size, remaining_sims)
@@ -114,8 +116,8 @@ def main():
             eta_min = round(eta_estimate / 60, 1)
             
             print(f"\n{completed_sims}/{num_sims} ({percent}%) total estimate: {total_min}min, ETA: {eta_min} min, " + \
-                f"rej: {num_rejected} ({round(100 * num_rejected / num_sims, 6)}%), " + \
-                f"col: {num_collisions} ({round(100 * num_collisions / num_sims, 6)}%)")
+                f"rej: {num_rejected} ({round(100 * num_rejected / completed_sims, 6)}%), " + \
+                f"col: {num_collisions} ({round(100 * num_collisions / completed_sims, 6)}%)")
 
     diff = time.perf_counter() - start
     ms_per_sim = round(1000 * diff / num_sims, 3)
