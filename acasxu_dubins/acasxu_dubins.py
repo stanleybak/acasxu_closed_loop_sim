@@ -206,7 +206,7 @@ class State():
     nets = load_networks()
     plane_size = 1500
 
-    nn_update_rate = 2.0
+    nn_update_rate = 1.0 # todo: make this a parameter
     dt = 0.05
 
     'Valid range" [100, 1145]'
@@ -240,6 +240,12 @@ class State():
         self.u_list = []
         self.u_list_index = None
         self.min_dist = np.inf
+
+    def __str__(self):
+        x1, y1, _theta1, x2, y2, _theta2, _ = self.vec
+        rho = np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    
+        return f'State(v_own: {self.v_own}, v_int: {self.v_int}, rho: {rho})'
 
     def artists_list(self):
         'return list of artists'
@@ -531,6 +537,8 @@ class State():
 def plot(s, save_mp4):
     """plot a specific simulation"""
 
+    print(f"plotting state {s}")
+
     init_plot()
 
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
@@ -629,7 +637,7 @@ def make_random_input(seed, intruder_can_turn=True, num_inputs=100):
     init_vec = np.zeros(7)
     init_vec[2] = np.pi / 2 # ownship moving up initially
 
-    radius = 10000 + np.random.random() * 51000 # [10000, 61000]
+    radius = 10000 + np.random.random() * 55000 # [10000, 65000]
     angle = np.random.random() * 2 * np.pi
     int_x = radius * np.cos(angle)
     int_y = radius * np.sin(angle)
@@ -659,7 +667,7 @@ def make_random_input(seed, intruder_can_turn=True, num_inputs=100):
 def main():
     'main entry point'
 
-    'parse arguments'
+    # parse arguments
     parser = argparse.ArgumentParser(description='Run ACASXU Dublins model simulator.')
     parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
     args = parser.parse_args()
@@ -670,62 +678,62 @@ def main():
 
     interesting_seed = -1
     interesting_state = None
+    fixed_seed = 3751955 # seed 3751955 has min_dist 14.6ft when rho in [10000, 61000]
 
-    num_sims = 1000
-    # with 1000 sims, seed 104 has min_dist 5478.2ft
+    if fixed_seed is not None:
+        interesting_seed = fixed_seed
+    else:
 
-    start = time.perf_counter()
+        num_sims = 1000
+        # with 1000 sims, seed 104 has min_dist 5478.2ft
 
-    for seed in range(num_sims):
-        if seed % 1000 == 0:
-            print(f"{(seed//1000) % 10}", end='', flush=True)
-        elif seed % 100 == 0:
-            print(".", end='', flush=True)
+        start = time.perf_counter()
 
-        init_vec, cmd_list, init_velo = make_random_input(seed, intruder_can_turn=intruder_can_turn)
+        for seed in range(num_sims):
+            if seed % 1000 == 0:
+                print(f"{(seed//1000) % 10}", end='', flush=True)
+            elif seed % 100 == 0:
+                print(".", end='', flush=True)
 
-        v_own = init_velo[0]
-        v_int = init_velo[1]
+            init_vec, cmd_list, init_velo = make_random_input(seed, intruder_can_turn=intruder_can_turn)
 
-        # reject start states where initial command is not clear-of-conflict
-        state5 = state7_to_state5(init_vec, v_own, v_int)
+            v_own = init_velo[0]
+            v_int = init_velo[1]
 
-        if state5[0] > 60760:
-            command = 0 # rho exceeds network limit
-        else:
-            res = run_network(State.nets[0], state5)
-            command = np.argmin(res)
+            # reject start states where initial command is not clear-of-conflict
+            state5 = state7_to_state5(init_vec, v_own, v_int)
 
-        if command != 0:
-            continue
+            if state5[0] > 60760:
+                command = 0 # rho exceeds network limit
+            else:
+                res = run_network(State.nets[0], state5)
+                command = np.argmin(res)
 
-        # run the simulation
-        s = State(init_vec, v_own, v_int, save_states=False)
-        s.simulate(cmd_list)
+            if command != 0:
+                continue
 
-        # reject simulations where the minimum distance was near the start
-        if s.vec[-1] < 3.0:
-            continue
+            # run the simulation
+            s = State(init_vec, v_own, v_int, save_states=False)
+            s.simulate(cmd_list)
 
-        # save most interesting state based on some criteria
-        if interesting_state is None or s.min_dist < interesting_state.min_dist:
-            interesting_seed = seed
-            interesting_state = s
+            # save most interesting state based on some criteria
+            if interesting_state is None or s.min_dist < interesting_state.min_dist:
+                interesting_seed = seed
+                interesting_state = s
 
-    diff = time.perf_counter() - start
-    ms_per_sim = round(1000 * diff / num_sims, 3)
-    print(f"\nDid {num_sims} sims in {round(diff, 1)} secs ({ms_per_sim}ms per sim)")
-
-    d = round(interesting_state.min_dist, 1)
-    print(f"\nplotting most interesting state with seed {interesting_seed} and min_dist {d}ft")
+        diff = time.perf_counter() - start
+        ms_per_sim = round(1000 * diff / num_sims, 3)
+        print(f"\nDid {num_sims} sims in {round(diff, 1)} secs ({ms_per_sim}ms per sim)")
 
     # optional: do plot
-    assert interesting_state is not None
+    assert interesting_seed != -1
+              
     init_vec, cmd_list, init_velo = make_random_input(interesting_seed, intruder_can_turn=intruder_can_turn)
     s = State(init_vec, init_velo[0], init_velo[1], save_states=True)
     s.simulate(cmd_list)
-    assert abs(s.min_dist - interesting_state.min_dist) < 1e-6, f"got min dist: {s.min_dist}"
-        
+
+    d = round(s.min_dist, 2)
+    print(f"\nSeed {interesting_seed} has min_dist {d}ft")
     plot(s, save_mp4)
 
 if __name__ == "__main__":

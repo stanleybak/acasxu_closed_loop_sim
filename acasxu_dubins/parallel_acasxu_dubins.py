@@ -14,11 +14,10 @@ import numpy as np
 
 from acasxu_dubins import State, make_random_input, plot, state7_to_state5, run_network
 
-def sim_single(seed):
-    """run single simulation and return min_dist, seed"""
+def sim_single(seed, intruder_can_turn):
+    """run single simulation and return min_dist"""
 
-    rv = (np.inf, seed)
-    intruder_can_turn = False
+    rv = np.inf
 
     if seed % 1000 == 0:
         print(f"{(seed//1000) % 10}", end='', flush=True)
@@ -44,43 +43,96 @@ def sim_single(seed):
         s = State(init_vec, init_velo[0], init_velo[1], save_states=False)
         s.simulate(cmd_list)
 
-        # reject simulations where the minimum distance was near the start
-        if s.vec[-1] >= 3.0:
-            rv = (s.min_dist, seed)
+        rv = s.min_dist
 
     return rv
 
 def main():
     'main entry point'
 
-    'parse arguments'
+    # parse arguments
     parser = argparse.ArgumentParser(description='Run ACASXU Dublins model simulator.')
     parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
     args = parser.parse_args()
 
     save_mp4 = args.save_mp4
-    interesting_seed = -1
+    intruder_can_turn = False
 
-    num_sims = 10000
+    # home laptop: 10000000 parallel sims take 5714.9 secs (0.571ms per sim)
+    num_sims = 1000000
+    batch_size = 10000
+
+    remaining_sims = num_sims
+    completed_sims = 0
+
+    collision_dist = 500
+    min_dist = np.inf
+    min_seed = -1
+    num_collisions = 0
+    num_rejected = 0
     start = time.perf_counter()
 
     with multiprocessing.Pool() as pool:
-        results = pool.map(sim_single, range(num_sims))
+        while remaining_sims > 0:
+            cur_batch = min(batch_size, remaining_sims)
+            params = []
 
-    min_dist, interesting_seed = min(results)
+            for i in range(cur_batch):
+                p = (completed_sims + i, intruder_can_turn)
+                params.append(p)
+            
+            results = pool.starmap(sim_single, params)
+            
+            for index, dist in enumerate(results):
+                seed = completed_sims + index
+                
+                if dist < min_dist:
+                    min_dist = dist
+                    min_seed = seed
+
+                if dist < collision_dist:
+                    num_collisions += 1
+
+                    init_vec, cmd_list, init_velo = make_random_input(seed, intruder_can_turn=intruder_can_turn)
+                    s = State(init_vec, init_velo[0], init_velo[1])
+
+                    print(f"Collision (dist={round(dist, 2)}) with seed {seed}: {s}")
+
+                if dist == np.inf:
+                    num_rejected += 1
+
+            # print progress
+            completed_sims += cur_batch
+            remaining_sims -= cur_batch
+
+            frac = completed_sims / num_sims
+            percent = round(100 * frac, 3)
+            elapsed = time.perf_counter() - start
+            total_estimate = (elapsed / frac)
+            total_min = round(total_estimate / 60, 1)
+            eta_estimate = total_estimate - elapsed
+            eta_min = round(eta_estimate / 60, 1)
+            
+            print(f"\n{completed_sims}/{num_sims} ({percent}%) total estimate: {total_min}min, ETA: {eta_min} min, " + \
+                f"rej: {num_rejected} ({round(100 * num_rejected / num_sims, 6)}%), " + \
+                f"col: {num_collisions} ({round(100 * num_collisions / num_sims, 6)}%)")
 
     diff = time.perf_counter() - start
     ms_per_sim = round(1000 * diff / num_sims, 3)
     print(f"\nDid {num_sims} parallel sims in {round(diff, 1)} secs ({ms_per_sim}ms per sim)")
 
+    print(f"Rejected {num_rejected} sims. {round(100 * num_rejected / num_sims, 6)}%")
+    
+    print(f"Collision in {num_collisions} sims. {round(100 * num_collisions / num_sims, 6)}%")
+
     d = round(min_dist, 1)
-    print(f"\nplotting most interesting state with seed {interesting_seed} and min_dist {d}ft")
+    print(f"\nSeed {min_seed} has min_dist {d}ft")
 
     # optional: do plot
-    init_vec, cmd_list, init_velo = make_random_input(interesting_seed, intruder_can_turn=False)
+    init_vec, cmd_list, init_velo = make_random_input(min_seed, intruder_can_turn=intruder_can_turn)
     s = State(init_vec, init_velo[0], init_velo[1], save_states=True)
     s.simulate(cmd_list)
-    assert abs(s.min_dist - min_dist) < 1e-6, f"got min dist: {s.min_dist}"
+    assert abs(s.min_dist - min_dist) < 1e-6, f"got min dist: {s.min_dist}, expected: {min_dist}"
     
     plot(s, save_mp4)
 
