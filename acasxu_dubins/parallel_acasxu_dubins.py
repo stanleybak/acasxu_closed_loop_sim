@@ -50,6 +50,12 @@ def sim_single(seed, intruder_can_turn):
 def main():
     'main entry point'
 
+    # dt = 0.05
+    #Did 1000000 parallel sims in 794.3 secs (0.794ms per sim)
+    #Rejected 58480 sims. 5.848%
+    #Collision in 3 sims. 0.0003%
+    #Seed 350121 has min_dist 325.4ft
+
     # parse arguments
     parser = argparse.ArgumentParser(description='Run ACASXU Dublins model simulator.')
     parser.add_argument("--save-mp4", action='store_true', default=False, help="Save plotted mp4 files to disk.")
@@ -58,9 +64,9 @@ def main():
     save_mp4 = args.save_mp4
     intruder_can_turn = False
 
-    # home laptop: 10000000 parallel sims take 5714.9 secs (0.571ms per sim)
-    num_sims = 1000000
-    batch_size = 10000
+    # home laptop (dt=0.05): 10000000 parallel sims take 5714.9 secs (0.571ms per sim)
+    num_sims = 1000000 * 100 # 100 million, estimated runtime 6 hours
+    batch_size = 50000
 
     remaining_sims = num_sims
     completed_sims = 0
@@ -69,6 +75,7 @@ def main():
     min_dist = np.inf
     min_seed = -1
     num_collisions = 0
+    collision_seeds = []
     num_rejected = 0
     start = time.perf_counter()
 
@@ -84,6 +91,7 @@ def main():
                 params.append(p)
             
             results = pool.starmap(sim_single, params)
+            print()
             
             for index, dist in enumerate(results):
                 seed = completed_sims + index
@@ -94,11 +102,12 @@ def main():
 
                 if dist < collision_dist:
                     num_collisions += 1
+                    collision_seeds.append(seed)
 
                     init_vec, cmd_list, init_velo = make_random_input(seed, intruder_can_turn=intruder_can_turn)
                     s = State(init_vec, init_velo[0], init_velo[1])
 
-                    print(f"Collision (dist={round(dist, 2)}) with seed {seed}: {s}")
+                    print(f"{num_collisions}. Collision (dist={round(dist, 2)}) with seed {seed}: {s}")
 
                 if dist == np.inf:
                     num_rejected += 1
@@ -115,13 +124,14 @@ def main():
             eta_estimate = total_estimate - elapsed
             eta_min = round(eta_estimate / 60, 1)
             
-            print(f"\n{completed_sims}/{num_sims} ({percent}%) total estimate: {total_min}min, ETA: {eta_min} min, " + \
+            print(f"{completed_sims}/{num_sims} ({percent}%) total estimate: {total_min}min, ETA: {eta_min} min, " + \
                 f"rej: {num_rejected} ({round(100 * num_rejected / completed_sims, 6)}%), " + \
                 f"col: {num_collisions} ({round(100 * num_collisions / completed_sims, 6)}%)")
 
     diff = time.perf_counter() - start
     ms_per_sim = round(1000 * diff / num_sims, 3)
     print(f"\nDid {num_sims} parallel sims in {round(diff, 1)} secs ({ms_per_sim}ms per sim)")
+    print(f"Collision seeds: {collision_seeds}")
 
     print(f"Rejected {num_rejected} sims. {round(100 * num_rejected / num_sims, 6)}%")
     

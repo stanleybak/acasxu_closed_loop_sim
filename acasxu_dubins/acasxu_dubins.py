@@ -207,7 +207,7 @@ class State():
     plane_size = 1500
 
     nn_update_rate = 1.0 # todo: make this a parameter
-    dt = 0.05
+    dt = 1.0
 
     'Valid range" [100, 1145]'
     #v_own = 800 # ft/sec
@@ -537,6 +537,7 @@ class State():
 def plot(s, save_mp4):
     """plot a specific simulation"""
 
+    s.vec = s.vec_list[0] # for printing the correct state
     print(f"plotting state {s}")
 
     init_plot()
@@ -678,12 +679,11 @@ def main():
 
     interesting_seed = -1
     interesting_state = None
-    fixed_seed = 3751955 # seed 3751955 has min_dist 14.6ft when rho in [10000, 61000]
+    fixed_seed = 835526
 
     if fixed_seed is not None:
         interesting_seed = fixed_seed
     else:
-
         num_sims = 1000
         # with 1000 sims, seed 104 has min_dist 5478.2ft
 
