@@ -65,7 +65,7 @@ def main():
     intruder_can_turn = False
 
     # home laptop (dt=0.05): 10000000 parallel sims take 5714.9 secs (0.571ms per sim)
-    num_sims = 1000000 * 100 # 100 million, estimated runtime 6 hours
+    num_sims = 10000 #1000000 * 100 # 100 million, estimated runtime 6 hours
     batch_size = 50000
 
     remaining_sims = num_sims
