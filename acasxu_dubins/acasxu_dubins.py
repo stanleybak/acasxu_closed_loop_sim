@@ -686,8 +686,8 @@ def main():
     if fixed_seed is not None:
         interesting_seed = fixed_seed
     else:
-        num_sims = 1000
-        # with 1000 sims, seed 104 has min_dist 5478.2ft
+        num_sims = 10000
+        # with 10000 sims, seed 671 has min_dist 4254.5ft
 
         start = time.perf_counter()
 
