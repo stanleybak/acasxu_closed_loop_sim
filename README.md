@@ -3,6 +3,35 @@ Closed-loop simulation code using ACAS Xu neural networks for collision avoidanc
 
 This repo contains different versions of in-plane flight with ACAS Xu for collision avoidance. Generally, the networks are activated by the ownship every 2 seconds to choose a command. The intruder also can adjust its command during flight.
 
+## Quick Start
+
+These instructions are for Ubuntu 20.04, although they may work on other systems. Before the code can run, you need to install the python package requirements.
+
+If you don't have pip3, first install that:
+```
+sudo apt update
+sudo apt upgrade
+sudo apt install python3-pip
+pip3 install --upgrade pip
+```
+
+Next, install the required packages:
+```
+pip3 install -r requirements.txt
+```
+
+Next, you should be able to run the code. Change the directory to `acasxu_dubins` and run `python3 acasxu_dubins.py` or `python3 parallel_acasxu_dubins.py` (this version should use all cores on your machine so it's faster for long runs).
+
+The expected output is as follows, along with a visualization of the closest-encounter out of all 10000 simulations:
+
+```
+0.........1.........2.........3.........4.........5.........6.........7.........8.........9.........
+Did 10000 sims in 3.5 secs (0.354ms per sim)
+
+Seed 671 has min_dist 4254.5ft
+plotting state State(v_own: 148, v_int: 579, rho: 50848.08155907395)
+```
+
 ## Features:
 
 * Nice visualization capability (and mp4 export).
